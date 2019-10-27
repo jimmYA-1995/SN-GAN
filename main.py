@@ -16,12 +16,12 @@ assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
 for physical_device in physical_devices:
     tf.config.experimental.set_memory_growth(physical_device, True)
 
-DEBUG = True
+DEBUG = False
 PATH = 'test'
 BATCH_SIZE = 64
 LATENT_DIM = 128
 EPOCHS = 100
-RATIO = 5
+RATIO = 1
 DISABLE_LABEL_TRICK = 0
 NUM_EXAMPLES = 64
 
@@ -61,41 +61,32 @@ def load_datasets(data_size_ratio=1.):
 class Generator(Model):
     def __init__(self):
         super().__init__()
-        self.bn = [layers.BatchNormalization() for _ in range(4)]
-        self.leaky_relu = [layers.LeakyReLU() for _ in range(4)]
-        # deConV layer
-        self.convtr_0 = layers.Conv2DTranspose(
-            512, (4, 4), strides=(1, 1))
-        self.convtr_1 = layers.Conv2DTranspose(
-            256, (4, 4), strides=(2, 2), padding="SAME")
-        self.convtr_2 = layers.Conv2DTranspose(
-            128, (4, 4), strides=(2, 2), padding="SAME")
-        self.convtr_3 = layers.Conv2DTranspose(
-            64, (4, 4), strides=(2, 2), padding="SAME")
-        self.convtr_4 = layers.Conv2DTranspose(
-            3, (3, 3), strides=(1, 1), padding="SAME", activation="tanh")
+        self.convtr = []
+        self.convtr.append(layers.Conv2DTranspose(512, (4, 4), strides=(1, 1)))
+        self.convtr.append(layers.Conv2DTranspose(256, (4, 4), strides=(2, 2), padding="SAME"))
+        self.convtr.append(layers.Conv2DTranspose(128, (4, 4), strides=(2, 2), padding="SAME"))
+        self.convtr.append(layers.Conv2DTranspose(64, (4, 4), strides=(2, 2), padding="SAME"))
+        self.convtr.append(layers.Conv2DTranspose(3, (3, 3), strides=(1, 1), padding="SAME", activation="tanh"))
+
+        if USE_SN:
+            self.convtr = [SpectralNormalization(convtr) for convtr in self.convtr]
+        else:
+            self.bn = [layers.BatchNormalization() for _ in range(4)]
 
     @tf.function
     def call(self, inputs, is_training=False):
         x = tf.reshape(inputs, shape=[-1, 1, 1, LATENT_DIM])
 
-        x = self.convtr_0(x)  # bs, 4, 4, 512
-        x = self.bn[0](x, training=is_training)
-        x = self.leaky_relu[0](x)
+        for i in range(len(self.convtr) - 1):
+            if USE_SN:
+                x = self.convtr[i](x, training=is_training)
+            else:
+                x = self.convtr[i](x)
+                x = self.bn[i](x, training=is_training)
+                
+            x = layers.LeakyReLU(alpha=0.1)(x)
 
-        x = self.convtr_1(x)  # bs, 8, 8, 256
-        x = self.bn[1](x, training=is_training)
-        x = self.leaky_relu[1](x)
-
-        x = self.convtr_2(x)  # bs, 16, 16, 128
-        x = self.bn[2](x, training=is_training)
-        x = self.leaky_relu[2](x)
-
-        x = self.convtr_3(x)  # bs, 32, 32, 64
-        x = self.bn[3](x, training=is_training)
-        x = self.leaky_relu[3](x)
-
-        x = self.convtr_4(x)  # bs, 32, 32, 3 (RGB)
+        x = self.convtr[-1](x)  # bs, 32, 32, 3 (RGB)
 
         return x
 
@@ -117,22 +108,22 @@ class Discriminator(Model):
         else:
             self.bn = [layers.BatchNormalization() for _ in range(7)]
 
-        self.leaky_relu = [layers.LeakyReLU(alpha=0.1) for _ in range(7)]
-
         self.flatten = layers.Flatten()
-        self.fc = SpectralNormalization(layers.Dense(1, activation='sigmoid'))
+        self.fc = layers.Dense(1, activation='sigmoid')
+        if USE_SN:
+            self.fc = SpectralNormalization(self.fc)
 
     @tf.function
     def call(self, inputs, is_training=False):
         x = inputs
         for i in range(len(self.conv)):
-            if self.use_SN:
+            if USE_SN:
                 x = self.conv[i](x, training=is_training)
             else:
                 x = self.conv[i](x)
                 x = self.bn[i](x, training=is_training)
 
-            x = self.leaky_relu[i](x)
+            x = layers.LeakyReLU(alpha=0.1)(x)
 
         x = self.flatten(x)
         x = self.fc(x) 
@@ -275,7 +266,7 @@ class Trainer(object):
                 print("save checkpoint ...")
                 ckpt_path = 'checkpoints/{}/epoch_{}'.format(PATH, epoch)
                 self.generator.save_weights(ckpt_path, save_format='tf')
-            if epoch % 5 == 0:
+            if (epoch+1) % 5 == 0:
                 self.save_sample_images(epoch)
 
             template = 'Epoch({:.2f} sec): {}, gen_loss: {}, disc_loss: {}'
