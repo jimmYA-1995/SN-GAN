@@ -7,4 +7,5 @@ In SN_layer.py, I implement spectral normalization layer and tested it with conv
 
 ## Results on Cifar10
 - Training after 30 epochs: 
-<img src="https://github.com/jimmYA-1995/SN-GAN/blob/master/demo/epoch-031.png" width="432">()
+
+<img src="https://github.com/jimmYA-1995/SN-GAN/blob/master/demo/epoch-031.png" width="432">
