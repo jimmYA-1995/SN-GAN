@@ -150,9 +150,7 @@ class Trainer(object):
         self.metrics['train_Gloss'] = tf.keras.metrics.Mean(
             'generator_loss', dtype=tf.float32)
         self.metrics['train_Dloss'] = tf.keras.metrics.Mean(
-            'discriminator_loss_real', dtype=tf.float32)
-        # self.metrics['train_Dloss_gen'] = tf.keras.metrics.Mean(
-        #     'discriminator_loss_gen', dtype=tf.float32)
+            'discriminator_loss', dtype=tf.float32)
 
         for name in self.var_name_list:
             self.metrics[name] = tf.keras.metrics.Mean(
@@ -256,7 +254,7 @@ class Trainer(object):
                 tf.summary.scalar(
                     'Generator Loss', self.metrics['train_Gloss'].result(), step=epoch)
                 tf.summary.scalar(
-                    'Discriminator Loss/real', self.metrics['train_Dloss'].result(), step=epoch)
+                    'Discriminator Loss', self.metrics['train_Dloss'].result(), step=epoch)
                 for name in self.var_name_list:
                     tf.summary.scalar('grads_norm/{}'.format(name), self.metrics[name].result(), step=epoch)
 
