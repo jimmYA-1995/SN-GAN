@@ -6,6 +6,6 @@ Original paper(by Miyato et al., 2018): https://openreview.net/forum?id=B1QRgziT
 In SN_layer.py, I implement spectral normalization layer and tested it with convolution and dense layer.
 
 ## Results on Cifar10
-- Training after 30 epochs: 
+- Training after 96 epochs: 
 
-<img src="https://github.com/jimmYA-1995/SN-GAN/blob/master/demo/epoch-031.png" width="432">
+<img src="https://github.com/jimmYA-1995/SN-GAN/blob/master/demo/epoch-096.png" width="432">
